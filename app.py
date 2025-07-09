@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -11,13 +10,18 @@ def load_data():
 
 narrators_df = load_data()
 
+st.set_page_config(layout="wide")
 st.title("Chronological Sanad Validator")
 st.markdown("Check if narrators in a hadith chain lived during overlapping periods.")
 
-# Input: narrator selection
+# Sort names alphabetically for dropdown
+sorted_names = narrators_df['name_letters'].sort_values().tolist()
+
+# Input: searchable narrator selection
 narrator_names = st.multiselect(
     "Select Narrators in Sanad Order (Top = Earliest)",
-    options=narrators_df['name_letters'].tolist()
+    options=sorted_names,
+    placeholder="Start typing a narrator's name..."
 )
 
 # Helper to check overlap between two lifespans
@@ -43,9 +47,9 @@ if len(narrator_names) >= 2:
                                     row_b['birth_greg'], row_b['death_greg'])
 
         results.append({
-            'Narrator A': name_a,
+            'Narrator A': f"{name_a}",
             'Lifespan A': f"{row_a['birth_greg']}–{row_a['death_greg']}",
-            'Narrator B': name_b,
+            'Narrator B': f"{name_b}",
             'Lifespan B': f"{row_b['birth_greg']}–{row_b['death_greg']}",
             'Overlap': "✅ Yes" if overlap else "❌ No",
         })
@@ -53,20 +57,29 @@ if len(narrator_names) >= 2:
     result_df = pd.DataFrame(results)
     st.dataframe(result_df, use_container_width=True)
 
-    # Optional: plot timeline
+    # Timeline section
     st.subheader("Narrator Lifespans")
-    timeline_data = narrators_df[narrators_df['name_letters'].isin(narrator_names)]
+    timeline_data = narrators_df[narrators_df['name_letters'].isin(narrator_names)].copy()
     timeline_data = timeline_data.assign(Name=timeline_data['name_letters'])
+
+    # Optional: include generation level if available
+    if 'grade' in narrators_df.columns:
+        timeline_data['Name'] = timeline_data.apply(
+            lambda row: f"{row['name_letters']} ({row['grade']})" if pd.notna(row['grade']) else row['name_letters'],
+            axis=1
+        )
 
     fig = px.timeline(
         timeline_data,
         x_start="birth_greg",
         x_end="death_greg",
         y="Name",
-        title="Narrator Lifespans Timeline",
-        labels={"Name": "Narrator"}
+        color="Name",
+        labels={"Name": "Narrator"},
+        height=500
     )
     fig.update_yaxes(autorange="reversed")
+    fig.update_layout(showlegend=False, margin=dict(l=0, r=0, t=30, b=0))
     st.plotly_chart(fig, use_container_width=True)
 
 elif len(narrator_names) == 1:
