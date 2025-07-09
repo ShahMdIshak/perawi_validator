@@ -31,19 +31,19 @@ if 'delete_index' not in st.session_state:
     st.session_state.delete_index = None
 
 st.subheader("Step 1: Select Narrators One by One")
-# Controlled text input with key for reset
-name_input = st.text_input("Type a narrator's name (partial allowed):", key="name_input")
 
-# Show matches and add
+# Dynamic key based on chain length to reset input each add
+input_key = f"name_input_{len(st.session_state.narrator_chain)}"
+name_input = st.text_input("Type a narrator's name (partial allowed):", key=input_key)
+
 if name_input:
     options = narrators_df['name_letters'].tolist()
     matches = fuzzy_search(name_input, options)
     if matches:
-        selected = st.selectbox("Select from closest matches:", matches, key="match_box")
-        if st.button("Add Narrator", key="add_btn"):
-            if selected not in st.session_state.narrator_chain:
+        selected = st.selectbox("Select from closest matches:", matches, key=f"match_{len(st.session_state.narrator_chain)}")
+        if st.button("Add Narrator", key=f"add_{len(st.session_state.narrator_chain)}"):
+            if selected and selected not in st.session_state.narrator_chain:
                 st.session_state.narrator_chain.append(selected)
-            st.session_state.name_input = ""  # Reset input
 
 # Display selected narrators with remove button
 if st.session_state.narrator_chain:
@@ -66,7 +66,7 @@ if st.session_state.narrator_chain:
     if st.button("Reset Chain", key="reset_btn"):
         st.session_state.narrator_chain = []
 
-# Lifespan overlap logic
+# Helper to check overlap strength
 def lifespan_overlap(b1, d1, b2, d2):
     return max(0, min(d1, d2) - max(b1, b2))
 
@@ -75,8 +75,6 @@ chain = st.session_state.narrator_chain
 if len(chain) >= 2:
     st.subheader("Lifespan Overlap Check")
     rows = []
-    for a, b in tee(chain): pass  # placeholder
-    # correct pairwise
     a_iter, b_iter = tee(chain)
     next(b_iter, None)
     for a, b in zip(a_iter, b_iter):
