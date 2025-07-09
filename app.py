@@ -21,23 +21,19 @@ def fuzzy_search(name, choices, cutoff=0.6):
 
 # Input: fuzzy search for narrator names
 st.subheader("Step 1: Select Narrators One by One")
-selected_names = []
-name_input = st.text_input("Type a narrator's name (partial allowed):")
-
-if name_input:
-    matches = fuzzy_search(name_input, narrators_df['name_letters'].tolist())
-    selected_match = st.selectbox("Select from closest matches:", matches)
-    if selected_match and st.button("Add Narrator"):
-        if selected_match not in selected_names:
-            selected_names.append(selected_match)
-
-# Session state to hold narrator list
 if "narrator_chain" not in st.session_state:
     st.session_state.narrator_chain = []
 
-# Add to session state chain
-if selected_match and selected_match not in st.session_state.narrator_chain:
-    st.session_state.narrator_chain.append(selected_match)
+name_input = st.text_input("Type a narrator's name (partial allowed):")
+
+selected_match = None
+if name_input:
+    matches = fuzzy_search(name_input, narrators_df['name_letters'].tolist())
+    if matches:
+        selected_match = st.selectbox("Select from closest matches:", matches)
+        if selected_match and st.button("Add Narrator"):
+            if selected_match not in st.session_state.narrator_chain:
+                st.session_state.narrator_chain.append(selected_match)
 
 # Display selected narrators
 if st.session_state.narrator_chain:
