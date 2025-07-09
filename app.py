@@ -52,6 +52,13 @@ def add_narrator():
 def remove_narrator(idx):
     if 0 <= idx < len(st.session_state.narrator_chain):
         st.session_state.narrator_chain.pop(idx)
+        # Also clear input and matches
+        st.session_state.input = ''
+        st.session_state.matches = []
+        st.session_state.selected = ''
+
+    if 0 <= idx < len(st.session_state.narrator_chain):
+        st.session_state.narrator_chain.pop(idx)
         # reset any selection
         st.session_state.matches = []
         st.session_state.selected = ''
@@ -63,7 +70,7 @@ def reset_chain():
     st.session_state.input = ''
     st.session_state.matches = []
     st.session_state.selected = ''
-    st.experimental_rerun()
+
 
 # Input section
 st.subheader("Step 1: Add Narrator to Chain")
