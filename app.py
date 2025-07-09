@@ -8,6 +8,7 @@ from itertools import tee
 def load_data():
     df = pd.read_csv("narrators_dataset_v2.csv")
     df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]  # Filter out invalid records
+    df.columns = df.columns.str.strip().str.lower()  # Normalize column names
     return df
 
 narrators_df = load_data()
@@ -17,10 +18,10 @@ st.title("Chronological Sanad Validator")
 st.markdown("Check if narrators in a hadith chain lived during overlapping periods.")
 
 # Fuzzy search helper (lowercased for broader match)
-def fuzzy_search(name, choices, cutoff=0.4):
+def fuzzy_search(name, choices, cutoff=0.7):
     name = name.lower()
     choices = [c.lower() for c in choices]
-    matches = get_close_matches(name, choices, n=5, cutoff=cutoff)
+    matches = get_close_matches(name, choices, n=8, cutoff=cutoff)
     # Map matches back to original case-sensitive names
     original = narrators_df['name_letters'].tolist()
     return [o for o in original if o.lower() in matches]
@@ -48,7 +49,7 @@ if st.session_state.narrator_chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
     for idx, name in enumerate(st.session_state.narrator_chain):
         row = narrators_df[narrators_df['name_letters'] == name].iloc[0]
-        arabic = row['name_arabic']
+        arabic = row['name_arabic'] if 'name_arabic' in row else ""
         grade = row['grade'] if 'grade' in row and pd.notna(row['grade']) and str(row['grade']).strip() else "—"
         col1, col2 = st.columns([0.9, 0.1])
         with col1:
