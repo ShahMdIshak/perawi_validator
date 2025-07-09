@@ -28,9 +28,11 @@ st.markdown("Check if narrators in a hadith chain lived during overlapping perio
 # Search helper: substring then fuzzy fallback
 def search_narrators(query, choices, cutoff=0.7, n=8):
     q = query.lower().strip()
+    # Substring match
     substr = [c for c in choices if q in c.lower()]
     if substr:
         return substr[:n]
+    # Fuzzy match fallback
     lowered = [c.lower() for c in choices]
     fuzzy = get_close_matches(q, lowered, n=n, cutoff=cutoff)
     return [choices[i] for i, lc in enumerate(lowered) if lc in fuzzy]
@@ -67,7 +69,7 @@ def reset_chain():
     st.session_state.selected = ''
 
 # Input section
-st.subheader("Step 1: Add Narrator to Chain")
+st.subheader("Add Narrator to Chain")
 st.text_input(
     "Type a narrator's name (partial allowed):",
     key='input',
@@ -78,6 +80,10 @@ st.text_input(
         )
     })
 )
+
+# If no matches found and user has typed
+if st.session_state.input and not st.session_state.matches:
+    st.error("Unable to find narrator. Please try a different name.")
 
 # Suggestion dropdown and add
 if st.session_state.matches:
