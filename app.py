@@ -7,7 +7,6 @@ import os
 # Load and prepare dataset
 @st.cache_data
 def load_data():
-    # Locate CSV
     base_dir = os.path.dirname(__file__)
     candidates = [
         'narrators_dataset_v3.csv',
@@ -22,16 +21,16 @@ def load_data():
         )
         return pd.DataFrame()
     df = pd.read_csv(csv_file)
-    # Valid lifespans
+    # Filter valid lifespans
     df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]
     df = df[df['birth_greg'] != df['death_greg']]
-    # Normalize names
+    # Normalize column names
     df.columns = df.columns.str.strip().str.lower()
     # Parse places_of_stay into cities list
     df['cities'] = df['places_of_stay']\
         .fillna('')\
         .apply(lambda x: [c.strip().lower() for c in x.split(',') if c.strip()])
-    # Parse indices
+    # Parse student and teacher indices
     df['students_index'] = df['students_index']\
         .fillna('')\
         .apply(lambda x: [int(i) for i in str(x).split(',') if i.strip().isdigit()])
@@ -42,7 +41,7 @@ def load_data():
 
 narrators_df = load_data()
 
-# App setup
+# App configuration
 st.set_page_config(layout="wide")
 st.title("Chronological Sanad Validator")
 st.markdown("Enhanced validation with temporal, geographic, and direct chain checks.")
@@ -50,16 +49,14 @@ st.markdown("Enhanced validation with temporal, geographic, and direct chain che
 # Search helper
 def search_narrators(query, choices, cutoff=0.7, n=8):
     q = query.lower().strip()
-    # substring
     substr = [c for c in choices if q in c.lower()]
     if substr:
         return substr[:n]
-    # fuzzy fallback
     lowered = [c.lower() for c in choices]
     fuzzy = get_close_matches(q, lowered, n=n, cutoff=cutoff)
     return [choices[i] for i, lc in enumerate(lowered) if lc in fuzzy]
 
-# Initialize state
+# Initialize session state
 def init_state():
     for k, default in [('narrator_chain', []), ('matches', []), ('input', ''), ('selected', '')]:
         if k not in st.session_state:
@@ -67,7 +64,6 @@ def init_state():
 init_state()
 
 # Callbacks
-
 def add_narrator():
     sel = st.session_state.selected
     if sel and sel not in st.session_state.narrator_chain:
@@ -142,13 +138,13 @@ if len(chain) >= 2:
         b_idx = rb['scholar_index']
         is_teacher = b_idx in ra['students_index'] or a_idx in rb['teachers_index']
         is_student = b_idx in ra['teachers_index'] or a_idx in rb['students_index']
-        # Determine link label
+        # Label link
         if is_teacher:
-            link_text = f"Link: {a} is teacher of {b}"
+            link_label = f"{a} is teacher of {b}"
         elif is_student:
-            link_text = f"Link: {a} is student of {b}"
+            link_label = f"{a} is student of {b}"
         else:
-            link_text = "Link: None"
+            link_label = "None"
         # Status
         if is_teacher or is_student:
             status = "🟢 Silsilah muttasilah"
@@ -161,14 +157,14 @@ if len(chain) >= 2:
         else:
             status = "❌ None"
         geo = ', '.join(sorted(common)) if common else '—'
-        # Render
+        # Render card
         st.markdown(f"""
 **{i}. {a} → {b}**  
 • **Status:** {status}  
 • **Lifespan A:** {ra['birth_greg']}–{ra['death_greg']}  
 • **Lifespan B:** {rb['birth_greg']}–{rb['death_greg']}  
 • **Shared City:** {geo}  
-• **{link_text}**
+• **Student-Teacher Link:** {link_label}
 """
         )
         st.divider()
