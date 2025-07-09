@@ -47,7 +47,7 @@ if st.session_state.narrator_chain:
     for idx, name in enumerate(st.session_state.narrator_chain):
         row = narrators_df[narrators_df['name_letters'] == name].iloc[0]
         arabic = row['name_arabic']
-        grade = row['grade'] if 'grade' in row and pd.notna(row['grade']) else "Unknown"
+        grade = row['grade'] if 'grade' in row and pd.notna(row['grade']) and str(row['grade']).strip() else "—"
         col1, col2 = st.columns([0.9, 0.1])
         with col1:
             st.write(f"{idx+1}. {name} ({arabic}) — Grade: {grade}")
