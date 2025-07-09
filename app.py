@@ -40,10 +40,18 @@ selected_match = None
 if name_input:
     matches = fuzzy_search(name_input, narrators_df['name_letters'].tolist())
     if matches:
-        selected_match = st.selectbox("Select from closest matches:", matches)
-        if selected_match and st.button("Add Narrator"):
+        # Auto-add if exactly one match
+        if len(matches) == 1:
+            selected_match = matches[0]
             if selected_match not in st.session_state.narrator_chain:
                 st.session_state.narrator_chain.append(selected_match)
+                st.experimental_rerun()
+        else:
+            selected_match = st.selectbox("Select from closest matches:", matches)
+            if selected_match and st.button("Add Narrator"):
+                if selected_match not in st.session_state.narrator_chain:
+                    st.session_state.narrator_chain.append(selected_match)
+                    st.experimental_rerun()
 
 # Display selected narrators
 if st.session_state.narrator_chain:
