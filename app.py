@@ -16,7 +16,7 @@ def load_data():
     df['cities'] = df['places_of_stay']\
         .fillna('')\
         .apply(lambda x: [c.strip().lower() for c in x.split(',') if c.strip()])
-    # Parse student and teacher indices
+    # Parse student and teacher indices into lists of ints
     df['students_index'] = df['students_index']\
         .fillna('')\
         .apply(lambda x: [int(i) for i in str(x).split(',') if i.strip().isdigit()])
@@ -36,30 +36,24 @@ st.markdown("Enhanced validation with temporal, geographic, and direct chain che
 def search_narrators(query, choices, cutoff=0.7, n=8):
     q = query.lower().strip()
     substr = [c for c in choices if q in c.lower()]
-    if substr:
-        return substr[:n]
-    lowered = [c.lower() for c in choices]
-    fuzzy = get_close_matches(q, lowered, n=n, cutoff=cutoff)
-    return [choices[i] for i, lc in enumerate(lowered) if lc in fuzzy]
+    return substr[:n] if substr else [choices[i] for i, lc in enumerate([c.lower() for c in choices]) if lc in get_close_matches(q, [c.lower() for c in choices], n=n, cutoff=cutoff)]
 
 # Initialize state
 def init_state():
     for key, default in [('narrator_chain', []), ('matches', []), ('input', ''), ('selected', '')]:
         if key not in st.session_state:
             st.session_state[key] = default
-
 init_state()
 
 # Callbacks
-
 def add_narrator():
     sel = st.session_state.selected
     if sel and sel not in st.session_state.narrator_chain:
         st.session_state.narrator_chain.append(sel)
+    # Reset search inputs
     st.session_state.input = ''
     st.session_state.matches = []
     st.session_state.selected = ''
-
 
 def remove_narrator(idx):
     chain = st.session_state.narrator_chain
@@ -68,7 +62,6 @@ def remove_narrator(idx):
     st.session_state.matches = []
     st.session_state.selected = ''
     st.session_state.input = ''
-
 
 def reset_chain():
     st.session_state.narrator_chain.clear()
@@ -88,16 +81,16 @@ st.text_input(
         )
     })
 )
-# No match indicator
-if st.session_state.input and not st.session_state.matches:
+# Error when no matches\if_st_input = st.session_state.input
+if if_st_input and not st.session_state.matches:
     st.error("Unable to find narrator. Please try a different name.")
 
-# Suggestions and add button
+# Suggestion dropdown and add button
 if st.session_state.matches:
     st.selectbox("Select from matches:", st.session_state.matches, key='selected')
     st.button("Add Narrator", on_click=add_narrator)
 
-# Display chain
+# Display selected chain
 chain = st.session_state.narrator_chain
 if chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
@@ -111,7 +104,7 @@ if chain:
             st.button("❌ Remove", key=f"remove_{idx}", on_click=remove_narrator, args=(idx,))
     st.button("Reset Chain", on_click=reset_chain)
 
-# Overlap & validation
+# Overlap & validation display
 if len(chain) >= 2:
     st.subheader("Sanad Validation Results")
     lookup = narrators_df.set_index('name_letters')
@@ -123,7 +116,14 @@ if len(chain) >= 2:
         # Geographic overlap
         common = set(ra['cities']).intersection(rb['cities'])
         # Direct isnad check
-        direct = (rb['scholar_index'] in ra['students_index']) or (ra['scholar_index'] in rb['teachers_index'])
+        a_idx = ra['scholar_index']
+        b_idx = rb['scholar_index']
+        direct = (
+            b_idx in ra['students_index'] or
+            b_idx in ra['teachers_index'] or
+            a_idx in rb['students_index'] or
+            a_idx in rb['teachers_index']
+        )
         # Scoring logic
         if direct:
             status = "🟢 Silsilah muttasilah"
@@ -136,6 +136,8 @@ if len(chain) >= 2:
         else:
             status = "❌ None"
         geo = ', '.join(sorted(common)) if common else '—'
+        # Direct link indicator explicitly
+        link_text = "✔️ Direct link" if direct else "❌ No direct link"
         # Render card
         st.markdown(f"""
 **{i}. {a} → {b}**  
@@ -143,7 +145,7 @@ if len(chain) >= 2:
 • **Lifespan A:** {ra['birth_greg']}–{ra['death_greg']}  
 • **Lifespan B:** {rb['birth_greg']}–{rb['death_greg']}  
 • **Shared City:** {geo}  
-• **Direct Link:** {'✔️' if direct else '—'}
+• **{link_text}**
 """
         )
         st.divider()
