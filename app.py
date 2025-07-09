@@ -45,13 +45,12 @@ if name_input:
             selected_match = matches[0]
             if selected_match not in st.session_state.narrator_chain:
                 st.session_state.narrator_chain.append(selected_match)
-                st.experimental_rerun()
+            name_input = ""
         else:
             selected_match = st.selectbox("Select from closest matches:", matches)
             if selected_match and st.button("Add Narrator"):
                 if selected_match not in st.session_state.narrator_chain:
                     st.session_state.narrator_chain.append(selected_match)
-                    st.experimental_rerun()
 
 # Display selected narrators
 if st.session_state.narrator_chain:
