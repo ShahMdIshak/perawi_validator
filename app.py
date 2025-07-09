@@ -29,6 +29,8 @@ def fuzzy_search(name, choices, cutoff=0.4):
 st.subheader("Step 1: Select Narrators One by One")
 if "narrator_chain" not in st.session_state:
     st.session_state.narrator_chain = []
+if "delete_index" not in st.session_state:
+    st.session_state.delete_index = None
 
 name_input = st.text_input("Type a narrator's name (partial allowed):")
 
@@ -53,12 +55,14 @@ if st.session_state.narrator_chain:
             st.write(f"{idx+1}. {name} ({arabic}) — Grade: {grade}")
         with col2:
             if st.button("❌", key=f"remove_{idx}"):
-                st.session_state.narrator_chain.pop(idx)
-                st.experimental_rerun()
+                st.session_state.delete_index = idx
+
+    if st.session_state.delete_index is not None:
+        st.session_state.narrator_chain.pop(st.session_state.delete_index)
+        st.session_state.delete_index = None
 
     if st.button("Reset Chain"):
         st.session_state.narrator_chain = []
-        st.experimental_rerun()
 
 # Helper to check overlap strength
 def lifespans_overlap(birth_a, death_a, birth_b, death_b):
