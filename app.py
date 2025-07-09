@@ -100,8 +100,8 @@ st.text_input(
         )
     })
 )
-# Error when no matches\if_st_input = st.session_state.input
-if if_st_input and not st.session_state.matches:
+# Error when no matches
+if st.session_state.input and not st.session_state.matches:
     st.error("Unable to find narrator. Please try a different name.")
 
 # Suggestion dropdown and add button
