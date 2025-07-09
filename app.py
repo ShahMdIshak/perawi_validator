@@ -8,6 +8,7 @@ from itertools import tee
 def load_data():
     df = pd.read_csv("narrators_dataset_v2.csv")
     df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]  # Filter out invalid records
+    df = df[df['birth_greg'] != df['death_greg']]  # Exclude narrators with same birth and death year
     df.columns = df.columns.str.strip().str.lower()  # Normalize column names
     return df
 
@@ -18,7 +19,7 @@ st.title("Chronological Sanad Validator")
 st.markdown("Check if narrators in a hadith chain lived during overlapping periods.")
 
 # Fuzzy search helper (lowercased for broader match)
-def fuzzy_search(name, choices, cutoff=0.7):
+def fuzzy_search(name, choices, cutoff=0.8):
     name = name.lower()
     choices = [c.lower() for c in choices]
     matches = get_close_matches(name, choices, n=8, cutoff=cutoff)
