@@ -2,23 +2,19 @@ import streamlit as st
 import pandas as pd
 from difflib import get_close_matches
 from itertools import tee
+import os
 
 # Load and prepare dataset
 @st.cache_data
 def load_data():
-    import os
-    # Attempt to locate CSV in common paths
+    # Locate CSV
     base_dir = os.path.dirname(__file__)
     candidates = [
         'narrators_dataset_v3.csv',
         os.path.join(base_dir, 'narrators_dataset_v3.csv'),
         '/mnt/data/narrators_dataset_v3.csv'
     ]
-    csv_file = None
-    for path in candidates:
-        if os.path.exists(path):
-            csv_file = path
-            break
+    csv_file = next((p for p in candidates if os.path.exists(p)), None)
     if csv_file is None:
         st.error(
             "Data file 'narrators_dataset_v3.csv' not found. "
@@ -29,9 +25,9 @@ def load_data():
     # Valid lifespans
     df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]
     df = df[df['birth_greg'] != df['death_greg']]
-    # Normalize column names
+    # Normalize names
     df.columns = df.columns.str.strip().str.lower()
-    # Parse places_of_stay
+    # Parse places_of_stay into cities list
     df['cities'] = df['places_of_stay']\
         .fillna('')\
         .apply(lambda x: [c.strip().lower() for c in x.split(',') if c.strip()])
@@ -46,7 +42,7 @@ def load_data():
 
 narrators_df = load_data()
 
-# App configuration
+# App setup
 st.set_page_config(layout="wide")
 st.title("Chronological Sanad Validator")
 st.markdown("Enhanced validation with temporal, geographic, and direct chain checks.")
@@ -54,22 +50,29 @@ st.markdown("Enhanced validation with temporal, geographic, and direct chain che
 # Search helper
 def search_narrators(query, choices, cutoff=0.7, n=8):
     q = query.lower().strip()
+    # substring
     substr = [c for c in choices if q in c.lower()]
-    return substr[:n] if substr else [choices[i] for i, lc in enumerate([c.lower() for c in choices]) if lc in get_close_matches(q, [c.lower() for c in choices], n=n, cutoff=cutoff)]
+    if substr:
+        return substr[:n]
+    # fuzzy fallback
+    lowered = [c.lower() for c in choices]
+    fuzzy = get_close_matches(q, lowered, n=n, cutoff=cutoff)
+    return [choices[i] for i, lc in enumerate(lowered) if lc in fuzzy]
 
 # Initialize state
 def init_state():
-    for key, default in [('narrator_chain', []), ('matches', []), ('input', ''), ('selected', '')]:
-        if key not in st.session_state:
-            st.session_state[key] = default
+    for k, default in [('narrator_chain', []), ('matches', []), ('input', ''), ('selected', '')]:
+        if k not in st.session_state:
+            st.session_state[k] = default
 init_state()
 
 # Callbacks
+
 def add_narrator():
     sel = st.session_state.selected
     if sel and sel not in st.session_state.narrator_chain:
         st.session_state.narrator_chain.append(sel)
-    # Reset search inputs
+    # clear search inputs
     st.session_state.input = ''
     st.session_state.matches = []
     st.session_state.selected = ''
@@ -100,30 +103,30 @@ st.text_input(
         )
     })
 )
-# Error when no matches
+# Error if no matches
 if st.session_state.input and not st.session_state.matches:
     st.error("Unable to find narrator. Please try a different name.")
 
-# Suggestion dropdown and add button
+# Suggestions and add
 if st.session_state.matches:
     st.selectbox("Select from matches:", st.session_state.matches, key='selected')
     st.button("Add Narrator", on_click=add_narrator)
 
-# Display selected chain
+# Display chain
 chain = st.session_state.narrator_chain
 if chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
     for idx, name in enumerate(chain):
-        row = narrators_df[narrators_df['name_letters']==name].iloc[0]
-        grade = row.get('grade','—') if pd.notna(row.get('grade',None)) else '—'
-        col1, col2 = st.columns([0.9,0.1])
-        with col1:
+        row = narrators_df[narrators_df['name_letters'] == name].iloc[0]
+        grade = row.get('grade', '—') if pd.notna(row.get('grade', None)) else '—'
+        c1, c2 = st.columns([0.9, 0.1])
+        with c1:
             st.write(f"{idx+1}. {name} — Grade: {grade}")
-        with col2:
+        with c2:
             st.button("❌ Remove", key=f"remove_{idx}", on_click=remove_narrator, args=(idx,))
     st.button("Reset Chain", on_click=reset_chain)
 
-# Overlap & validation display
+# Results cards
 if len(chain) >= 2:
     st.subheader("Sanad Validation Results")
     lookup = narrators_df.set_index('name_letters')
@@ -132,19 +135,22 @@ if len(chain) >= 2:
         rb = lookup.loc[b]
         # Temporal overlap
         overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
-        # Geographic overlap
+        # Geographic
         common = set(ra['cities']).intersection(rb['cities'])
-        # Direct isnad check
+        # Direct isnad
         a_idx = ra['scholar_index']
         b_idx = rb['scholar_index']
-        direct = (
-            b_idx in ra['students_index'] or
-            b_idx in ra['teachers_index'] or
-            a_idx in rb['students_index'] or
-            a_idx in rb['teachers_index']
-        )
-        # Scoring logic
-        if direct:
+        is_teacher = b_idx in ra['students_index'] or a_idx in rb['teachers_index']
+        is_student = b_idx in ra['teachers_index'] or a_idx in rb['students_index']
+        # Determine link label
+        if is_teacher:
+            link_text = f"Link: {a} is teacher of {b}"
+        elif is_student:
+            link_text = f"Link: {a} is student of {b}"
+        else:
+            link_text = "Link: None"
+        # Status
+        if is_teacher or is_student:
             status = "🟢 Silsilah muttasilah"
         elif overlap_years >= 10:
             status = "✅ Strong"
@@ -155,9 +161,7 @@ if len(chain) >= 2:
         else:
             status = "❌ None"
         geo = ', '.join(sorted(common)) if common else '—'
-        # Direct link indicator explicitly
-        link_text = "✔️ Direct link" if direct else "❌ No direct link"
-        # Render card
+        # Render
         st.markdown(f"""
 **{i}. {a} → {b}**  
 • **Status:** {status}  
