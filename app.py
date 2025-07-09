@@ -26,7 +26,7 @@ def load_data():
     df = df[df['birth_greg'] != df['death_greg']]
     # Normalize column names
     df.columns = df.columns.str.strip().str.lower()
-    # Parse places_of_stay into cities list
+    # Parse places_of_stay into list of cities
     df['cities'] = df['places_of_stay']\
         .fillna('')\
         .apply(lambda x: [c.strip().lower() for c in x.split(',') if c.strip()])
@@ -41,6 +41,7 @@ def load_data():
 
 narrators_df = load_data()
 
+# App configuration
 st.set_page_config(layout="wide")
 st.title("Sanad Verifier")
 st.markdown("Enhanced validation with temporal, geographic, and direct chain checks.")
@@ -56,17 +57,16 @@ def search_narrators(query, choices, cutoff=0.7, n=8):
     return [choices[i] for i, lc in enumerate(lowered) if lc in fuzzy]
 
 # Initialize session state
-def init_state():
-    for k, default in [('narrator_chain', []), ('matches', []), ('input', ''), ('selected', '')]:
-        if k not in st.session_state:
-            st.session_state[k] = default
-init_state()
+for k, default in [('narrator_chain', []), ('matches', []), ('input', ''), ('selected', '')]:
+    if k not in st.session_state:
+        st.session_state[k] = default
 
 # Callbacks
 def add_narrator():
     sel = st.session_state.selected
     if sel and sel not in st.session_state.narrator_chain:
         st.session_state.narrator_chain.append(sel)
+    # Clear input and matches
     st.session_state.input = ''
     st.session_state.matches = []
     st.session_state.selected = ''
@@ -97,9 +97,9 @@ st.text_input(
         )
     })
 )
-st.error("Unable to find narrator. Please try a different name.") if st.session_state.input and not st.session_state.matches else None
+if st.session_state.input and not st.session_state.matches:
+    st.error("Unable to find narrator. Please try a different name.")
 
-# Suggestion dropdown and add
 if st.session_state.matches:
     st.selectbox("Select from matches:", st.session_state.matches, key='selected')
     st.button("Add Narrator", on_click=add_narrator)
@@ -125,8 +125,11 @@ if len(chain) >= 2:
     for i, (a, b) in enumerate(zip(chain, chain[1:]), start=1):
         ra = lookup.loc[a]
         rb = lookup.loc[b]
+        # Temporal overlap
         overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
+        # Geographic overlap
         common = set(ra['cities']).intersection(rb['cities'])
+        # Direct isnad
         a_idx = ra['scholar_index']
         b_idx = rb['scholar_index']
         is_teacher = b_idx in ra['students_index'] or a_idx in rb['teachers_index']
@@ -137,6 +140,7 @@ if len(chain) >= 2:
             link_label = f"{a} is student of {b}"
         else:
             link_label = "None"
+        # Status
         if is_teacher or is_student:
             status = "🟢 Silsilah muttasilah"
         elif overlap_years >= 10:
@@ -148,11 +152,13 @@ if len(chain) >= 2:
         else:
             status = "❌ None"
         geo = ', '.join(sorted(common)) if common else '—'
+        # Render card with CE units and overlap comment
         st.markdown(f"""
 **{i}. {a} → {b}**  
 • **Status:** {status}  
-• **Lifespan A:** {ra['birth_greg']}–{ra['death_greg']}  
-• **Lifespan B:** {rb['birth_greg']}–{rb['death_greg']}  
+• **Lifespan A:** {ra['birth_greg']} CE – {ra['death_greg']} CE  
+• **Lifespan B:** {rb['birth_greg']} CE – {rb['death_greg']} CE  
+• **Overlap Duration:** {overlap_years} year{'s' if overlap_years != 1 else ''}  
 • **Shared City:** {geo}  
 • **Student-Teacher Link:** {link_label}
 """
