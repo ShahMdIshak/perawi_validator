@@ -34,17 +34,21 @@ if 'narrator_chain' not in st.session_state:
     st.session_state.narrator_chain = []
 
 st.subheader("Step 1: Select Narrators One by One")
-name_input = st.text_input("Type a narrator's name (partial allowed):", key="name_input")
+
+# Dynamic input key based on chain length
+dynamic_key = f"name_input_{len(st.session_state.narrator_chain)}"
+name_input = st.text_input("Type a narrator's name (partial allowed):", key=dynamic_key)
 
 if name_input:
     options = narrators_df['name_letters'].tolist()
     matches = search_narrators(name_input, options, cutoff=0.7, n=8)
     if matches:
-        selected = st.selectbox("Select from matches:", matches, key="match_box")
-        if st.button("Add Narrator", key="add_btn"):
+        select_key = f"match_box_{len(st.session_state.narrator_chain)}"
+        selected = st.selectbox("Select from matches:", matches, key=select_key)
+        add_key = f"add_btn_{len(st.session_state.narrator_chain)}"
+        if st.button("Add Narrator", key=add_key):
             if selected and selected not in st.session_state.narrator_chain:
                 st.session_state.narrator_chain.append(selected)
-                st.session_state.name_input = ''  # clear for next entry
 
 # Display chain with removal
 if st.session_state.narrator_chain:
@@ -57,10 +61,12 @@ if st.session_state.narrator_chain:
         with c1:
             st.write(f"{idx+1}. {name} ({arabic}) — Grade: {grade}")
         with c2:
-            if st.button("❌", key=f"remove_{idx}"):
+            remove_key = f"remove_{idx}"
+            if st.button("❌", key=remove_key):
                 st.session_state.narrator_chain.pop(idx)
                 break
-    if st.button("Reset Chain", key="reset_btn"):
+    reset_key = f"reset_btn"
+    if st.button("Reset Chain", key=reset_key):
         st.session_state.narrator_chain = []
 
 # Overlap check
