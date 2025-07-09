@@ -18,12 +18,11 @@ st.set_page_config(layout="wide")
 st.title("Chronological Sanad Validator")
 st.markdown("Check if narrators in a hadith chain lived during overlapping periods.")
 
-# Fuzzy search helper (lowercased for broader match)
+# Fuzzy search helper
 def fuzzy_search(name, choices, cutoff=0.8):
     name = name.lower()
     choices = [c.lower() for c in choices]
     matches = get_close_matches(name, choices, n=8, cutoff=cutoff)
-    # Map matches back to original case-sensitive names
     original = narrators_df['name_letters'].tolist()
     return [o for o in original if o.lower() in matches]
 
@@ -35,21 +34,15 @@ if "delete_index" not in st.session_state:
     st.session_state.delete_index = None
 
 name_input = st.text_input("Type a narrator's name (partial allowed):")
-
 selected_match = None
+
 if name_input:
     matches = fuzzy_search(name_input, narrators_df['name_letters'].tolist())
     if matches:
-        if len(matches) == 1:
-            selected_match = matches[0]
-            if selected_match not in st.session_state.narrator_chain:
+        selected_match = st.selectbox("Select from closest matches:", matches)
+        if st.button("Add Narrator"):
+            if selected_match and selected_match not in st.session_state.narrator_chain:
                 st.session_state.narrator_chain.append(selected_match)
-            st.text_input("Type a narrator's name (partial allowed):", value="", key="reset")
-        else:
-            selected_match = st.selectbox("Select from closest matches:", matches, key="match_select")
-            if st.button("Add Narrator"):
-                if selected_match and selected_match not in st.session_state.narrator_chain:
-                    st.session_state.narrator_chain.append(selected_match)
 
 # Display selected narrators
 if st.session_state.narrator_chain:
