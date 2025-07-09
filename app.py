@@ -6,15 +6,11 @@ from itertools import tee
 # Load and prepare dataset
 def load_data():
     df = pd.read_csv("narrators_dataset_v2.csv")
-    # valid lifespans
     df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]
-    # exclude narrators whose birth and death years are the same
     df = df[df['birth_greg'] != df['death_greg']]
-    # normalize column names
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-# Cache data
 narrators_df = st.cache_data(load_data)()
 
 # App layout
@@ -34,32 +30,42 @@ def search_narrators(query, choices, cutoff=0.7, n=8):
     fuzzy = get_close_matches(q, lowered, n=n, cutoff=cutoff)
     return [choices[i] for i, lc in enumerate(lowered) if lc in fuzzy]
 
-# Callback functions for removal and reset
-def remove_narrator(idx):
-    chain = st.session_state.narrator_chain
-    if 0 <= idx < len(chain):
-        chain.pop(idx)
-
-def reset_chain():
-    st.session_state.narrator_chain = []
-
-# Initialize session state
+# State initialization
 if 'narrator_chain' not in st.session_state:
     st.session_state.narrator_chain = []
+if 'matches' not in st.session_state:
+    st.session_state.matches = []
+if 'selected' not in st.session_state:
+    st.session_state.selected = None
 
-# Step 1: Add narrators via form
+# Callback to update matches when input changes
+def update_matches():
+    query = st.session_state.input
+    if query:
+        st.session_state.matches = search_narrators(query, narrators_df['name_letters'].tolist())
+    else:
+        st.session_state.matches = []
+
+# Callback to add narrator and clear input
+def add_narrator():
+    sel = st.session_state.selected
+    if sel and sel not in st.session_state.narrator_chain:
+        st.session_state.narrator_chain.append(sel)
+    # Clear input and matches
+    st.session_state.input = ''
+    st.session_state.matches = []
+    st.session_state.selected = None
+
+# Input and search controls
 st.subheader("Step 1: Add Narrator to Chain")
-with st.form(key="nar_form", clear_on_submit=True):
-    name_input = st.text_input("Type a narrator's name (partial allowed):")
-    options = narrators_df['name_letters'].tolist()
-    matches = search_narrators(name_input, options) if name_input else []
-    selected = st.selectbox("Select a narrator:", matches) if matches else None
-    submitted = st.form_submit_button("Add Narrator")
-    if submitted and selected:
-        if selected not in st.session_state.narrator_chain:
-            st.session_state.narrator_chain.append(selected)
+st.text_input("Type a narrator's name (partial allowed):", key='input', on_change=update_matches)
 
-# Display selected chain with removal buttons
+# Show dropdown if matches exist
+if st.session_state.matches:
+    st.selectbox("Select from matches:", st.session_state.matches, key='selected')
+    st.button("Add Narrator", on_click=add_narrator)
+
+# Display selected chain with removal
 if st.session_state.narrator_chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
     for idx, name in enumerate(st.session_state.narrator_chain):
@@ -70,30 +76,36 @@ if st.session_state.narrator_chain:
         with col1:
             st.write(f"{idx+1}. {name} ({arabic}) — Grade: {grade}")
         with col2:
-            st.button("❌ Remove", key=f"remove_{idx}", on_click=remove_narrator, args=(idx,))
-    # Reset chain button
-    st.button("Reset Chain", key="reset_chain", on_click=reset_chain)
+            if st.button("❌ Remove", key=f"remove_{idx}"):
+                st.session_state.narrator_chain.pop(idx)
+                break
+    # Reset chain\#
+    if st.button("Reset Chain"):
+        st.session_state.narrator_chain.clear()
 
-# Step 2: Compute and display overlap
+# Overlap calculation and display
+def lifespan_overlap(b1, d1, b2, d2):
+    return max(0, min(d1, d2) - max(b1, b2))
+
 chain = st.session_state.narrator_chain
 if len(chain) >= 2:
     st.subheader("Lifespan Overlap Check")
-    rows = []
+    results = []
     a_iter, b_iter = tee(chain)
     next(b_iter, None)
     for a, b in zip(a_iter, b_iter):
         ra = narrators_df[narrators_df['name_letters'] == a].iloc[0]
         rb = narrators_df[narrators_df['name_letters'] == b].iloc[0]
-        overlap = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
+        overlap = lifespan_overlap(ra['birth_greg'], ra['death_greg'], rb['birth_greg'], rb['death_greg'])
         strength = ("✅ Strong" if overlap >= 10 else "🟡 Weak" if overlap >= 1 else "❌ None")
-        rows.append({
+        results.append({
             'Narrator A': f"{a} ({ra.get('name_arabic','')})",
             'Lifespan A': f"{ra['birth_greg']}–{ra['death_greg']}",
             'Narrator B': f"{b} ({rb.get('name_arabic','')})",
             'Lifespan B': f"{rb['birth_greg']}–{rb['death_greg']}",
             'Overlap Strength': strength
         })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True)
+    st.dataframe(pd.DataFrame(results), use_container_width=True)
 elif len(chain) == 1:
     st.info("Select at least two narrators to see overlap.")
 else:
