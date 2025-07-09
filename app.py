@@ -41,9 +41,8 @@ def load_data():
 
 narrators_df = load_data()
 
-# App configuration
 st.set_page_config(layout="wide")
-st.title("Chronological Sanad Validator")
+st.title("Sanad Verifier")
 st.markdown("Enhanced validation with temporal, geographic, and direct chain checks.")
 
 # Search helper
@@ -68,7 +67,6 @@ def add_narrator():
     sel = st.session_state.selected
     if sel and sel not in st.session_state.narrator_chain:
         st.session_state.narrator_chain.append(sel)
-    # clear search inputs
     st.session_state.input = ''
     st.session_state.matches = []
     st.session_state.selected = ''
@@ -99,16 +97,14 @@ st.text_input(
         )
     })
 )
-# Error if no matches
-if st.session_state.input and not st.session_state.matches:
-    st.error("Unable to find narrator. Please try a different name.")
+st.error("Unable to find narrator. Please try a different name.") if st.session_state.input and not st.session_state.matches else None
 
-# Suggestions and add
+# Suggestion dropdown and add
 if st.session_state.matches:
     st.selectbox("Select from matches:", st.session_state.matches, key='selected')
     st.button("Add Narrator", on_click=add_narrator)
 
-# Display chain
+# Display selected chain
 chain = st.session_state.narrator_chain
 if chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
@@ -129,23 +125,18 @@ if len(chain) >= 2:
     for i, (a, b) in enumerate(zip(chain, chain[1:]), start=1):
         ra = lookup.loc[a]
         rb = lookup.loc[b]
-        # Temporal overlap
         overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
-        # Geographic
         common = set(ra['cities']).intersection(rb['cities'])
-        # Direct isnad
         a_idx = ra['scholar_index']
         b_idx = rb['scholar_index']
         is_teacher = b_idx in ra['students_index'] or a_idx in rb['teachers_index']
         is_student = b_idx in ra['teachers_index'] or a_idx in rb['students_index']
-        # Label link
         if is_teacher:
             link_label = f"{a} is teacher of {b}"
         elif is_student:
             link_label = f"{a} is student of {b}"
         else:
             link_label = "None"
-        # Status
         if is_teacher or is_student:
             status = "🟢 Silsilah muttasilah"
         elif overlap_years >= 10:
@@ -157,7 +148,6 @@ if len(chain) >= 2:
         else:
             status = "❌ None"
         geo = ', '.join(sorted(common)) if common else '—'
-        # Render card
         st.markdown(f"""
 **{i}. {a} → {b}**  
 • **Status:** {status}  
