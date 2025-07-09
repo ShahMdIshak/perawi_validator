@@ -25,29 +25,21 @@ st.set_page_config(layout="wide")
 st.title("Chronological Sanad Validator")
 st.markdown("Check if narrators in a hadith chain lived during overlapping periods and locations.")
 
-# Search helper: substring first, then fuzzy fallback
+# Search helper: substring then fuzzy fallback
 def search_narrators(query, choices, cutoff=0.7, n=8):
     q = query.lower().strip()
-    # Substring match
     substr = [c for c in choices if q in c.lower()]
     if substr:
         return substr[:n]
-    # Fuzzy fallback
     lowered = [c.lower() for c in choices]
     fuzzy = get_close_matches(q, lowered, n=n, cutoff=cutoff)
     return [choices[i] for i, lc in enumerate(lowered) if lc in fuzzy]
 
-# Initialize session state defaults
+# Initialize session state
 def init_state():
-    if 'narrator_chain' not in st.session_state:
-        st.session_state.narrator_chain = []
-    if 'matches' not in st.session_state:
-        st.session_state.matches = []
-    if 'input' not in st.session_state:
-        st.session_state.input = ''
-    if 'selected' not in st.session_state:
-        st.session_state.selected = ''
-
+    for key, default in [('narrator_chain', []), ('matches', []), ('input', ''), ('selected', '')]:
+        if key not in st.session_state:
+            st.session_state[key] = default
 init_state()
 
 # Callbacks
@@ -56,26 +48,22 @@ def add_narrator():
     sel = st.session_state.selected
     if sel and sel not in st.session_state.narrator_chain:
         st.session_state.narrator_chain.append(sel)
-    # Reset search state
     st.session_state.input = ''
     st.session_state.matches = []
     st.session_state.selected = ''
-
 
 def remove_narrator(idx):
     chain = st.session_state.narrator_chain
     if 0 <= idx < len(chain):
         chain.pop(idx)
-    # Clear search state
     st.session_state.matches = []
     st.session_state.selected = ''
     st.session_state.input = ''
 
-
 def reset_chain():
-    st.session_state.narrator_chain = []
-    st.session_state.matches = []
+    st.session_state.narrator_chain.clear()
     st.session_state.input = ''
+    st.session_state.matches = []
     st.session_state.selected = ''
 
 # Input section
@@ -91,7 +79,7 @@ st.text_input(
     })
 )
 
-# Suggestion dropdown and add button
+# Suggestion dropdown and add
 if st.session_state.matches:
     st.selectbox(
         "Select from matches:",
@@ -100,7 +88,7 @@ if st.session_state.matches:
     )
     st.button("Add Narrator", on_click=add_narrator)
 
-# Display selected chain with remove and reset
+# Display selected chain
 chain = st.session_state.narrator_chain
 if chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
@@ -119,34 +107,38 @@ if chain:
             )
     st.button("Reset Chain", on_click=reset_chain)
 
-# Overlap calculation function
-def lifespan_overlap(b1, d1, b2, d2):
-    return max(0, min(d1, d2) - max(b1, b2))
-
-# Display results as cards including shared city
+# Overlap and geographic check display as cards
 if len(chain) >= 2:
     st.subheader("Lifespan & Geographic Overlap Check")
     choices = narrators_df.set_index('name_letters')
     for i, (a, b) in enumerate(zip(chain, chain[1:]), start=1):
         ra = choices.loc[a]
         rb = choices.loc[b]
-        overlap = lifespan_overlap(
-            ra['birth_greg'], ra['death_greg'],
-            rb['birth_greg'], rb['death_greg']
+        # Temporal overlap
+        overlap = max(
+            0,
+            min(ra['death_greg'], rb['death_greg'])
+            - max(ra['birth_greg'], rb['birth_greg'])
         )
-        strength = (
-            "✅ Strong" if overlap >= 10 else
-            "🟡 Weak" if overlap >= 1 else
-            "❌ None"
-        )
+        # Geographic overlap
         common = set(ra['cities']).intersection(rb['cities'])
-        geo = ', '.join(sorted(common)) if common else '—'
+        geo = ', '.join(sorted(common)) if common else None
+        # Compute strength including geography
+        if overlap >= 10:
+            strength = "✅ Strong"
+        elif overlap >= 1 and geo:
+            strength = "✅ Strong (Geo)"
+        elif overlap >= 1:
+            strength = "🟡 Weak"
+        else:
+            strength = "❌ None"
+        # Render card
         st.markdown(f"""
 **{i}. {a} → {b}**  
-• **Overlap:** {strength}  
-• **A:** {ra['birth_greg']}–{ra['death_greg']}  
-• **B:** {rb['birth_greg']}–{rb['death_greg']}  
-• **Shared City:** {geo}
+• **Strength:** {strength}  
+• **Lifespan A:** {ra['birth_greg']}–{ra['death_greg']}  
+• **Lifespan B:** {rb['birth_greg']}–{rb['death_greg']}  
+• **Shared City:** {geo or '—'}
 """
         )
         st.divider()
