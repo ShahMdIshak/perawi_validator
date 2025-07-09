@@ -3,16 +3,17 @@ import pandas as pd
 from difflib import get_close_matches
 from itertools import tee
 
-# Load dataset
+# Load and prepare dataset
 def load_data():
     df = pd.read_csv("narrators_dataset_v2.csv")
-    df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]  # Filter invalid
-    df = df[df['birth_greg'] != df['death_greg']]  # Exclude same-year narrators
+    df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]  # valid lifespans
+    df = df[df['birth_greg'] != df['death_greg']]  # exclude same-year
     df.columns = df.columns.str.strip().str.lower()
     return df
 
 narrators_df = st.cache_data(load_data)()
 
+# Page setup
 st.set_page_config(layout="wide")
 st.title("Chronological Sanad Validator")
 st.markdown("Check if narrators in a hadith chain lived during overlapping periods.")
@@ -22,76 +23,82 @@ def fuzzy_search(query, choices, cutoff=0.7, n=8):
     q = query.lower()
     lowered = [c.lower() for c in choices]
     matches = get_close_matches(q, lowered, n=n, cutoff=cutoff)
-    return [choices[i] for i, c in enumerate(lowered) if c in matches]
+    return [choices[i] for i, lc in enumerate(lowered) if lc in matches]
 
 # Initialize session state
 if 'narrator_chain' not in st.session_state:
     st.session_state.narrator_chain = []
 if 'delete_index' not in st.session_state:
     st.session_state.delete_index = None
+if 'name_input' not in st.session_state:
+    st.session_state.name_input = ''
 
+# Input section
 st.subheader("Step 1: Select Narrators One by One")
+# Single text input with a constant key
+type_input = st.text_input(
+    "Type a narrator's name (partial allowed):", key="name_input"
+)
 
-# Dynamic key based on chain length to reset input each add
-input_key = f"name_input_{len(st.session_state.narrator_chain)}"
-name_input = st.text_input("Type a narrator's name (partial allowed):", key=input_key)
+# Suggest matches and add button
+def add_narrator(selected):
+    if selected and selected not in st.session_state.narrator_chain:
+        st.session_state.narrator_chain.append(selected)
+        st.session_state.name_input = ''  # clear input
 
-if name_input:
+if type_input:
     options = narrators_df['name_letters'].tolist()
-    matches = fuzzy_search(name_input, options)
+    matches = fuzzy_search(type_input, options)
     if matches:
-        selected = st.selectbox("Select from closest matches:", matches, key=f"match_{len(st.session_state.narrator_chain)}")
-        if st.button("Add Narrator", key=f"add_{len(st.session_state.narrator_chain)}"):
-            if selected and selected not in st.session_state.narrator_chain:
-                st.session_state.narrator_chain.append(selected)
+        selected = st.selectbox("Select from closest matches:", matches, key="match_box")
+        if st.button("Add Narrator", key="add_btn"):
+            add_narrator(selected)
 
-# Display selected narrators with remove button
+# Display chain and removal
+def remove_selected(idx):
+    st.session_state.narrator_chain.pop(idx)
+
 if st.session_state.narrator_chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
     for idx, name in enumerate(st.session_state.narrator_chain):
         row = narrators_df[narrators_df['name_letters'] == name].iloc[0]
         arabic = row.get('name_arabic', '')
-        grade = row.get('grade', '') if pd.notna(row.get('grade', '')) else "—"
+        grade = row.get('grade', '—') if pd.notna(row.get('grade', None)) else '—'
         col1, col2 = st.columns([0.9, 0.1])
         with col1:
             st.write(f"{idx+1}. {name} ({arabic}) — Grade: {grade}")
         with col2:
             if st.button("❌", key=f"remove_{idx}"):
-                st.session_state.delete_index = idx
-                break
-    if st.session_state.delete_index is not None:
-        st.session_state.narrator_chain.pop(st.session_state.delete_index)
-        st.session_state.delete_index = None
+                remove_selected(idx)
 
     if st.button("Reset Chain", key="reset_btn"):
         st.session_state.narrator_chain = []
 
-# Helper to check overlap strength
-def lifespan_overlap(b1, d1, b2, d2):
-    return max(0, min(d1, d2) - max(b1, b2))
-
-# Output table
-chain = st.session_state.narrator_chain
-if len(chain) >= 2:
+# Overlap logic and results
+if len(st.session_state.narrator_chain) >= 2:
     st.subheader("Lifespan Overlap Check")
-    rows = []
-    a_iter, b_iter = tee(chain)
+    results = []
+    a_iter, b_iter = tee(st.session_state.narrator_chain)
     next(b_iter, None)
     for a, b in zip(a_iter, b_iter):
-        ra = narrators_df[narrators_df['name_letters'] == a].iloc[0]
-        rb = narrators_df[narrators_df['name_letters'] == b].iloc[0]
-        overlap = lifespan_overlap(ra['birth_greg'], ra['death_greg'], rb['birth_greg'], rb['death_greg'])
-        status = "✅ Strong" if overlap >= 10 else "🟡 Weak" if overlap >=1 else "❌ None"
-        rows.append({
+        ra = narrators_df[narrators_df['name_letters']==a].iloc[0]
+        rb = narrators_df[narrators_df['name_letters']==b].iloc[0]
+        overlap = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
+        strength = (
+            "✅ Strong" if overlap >= 10 else
+            "🟡 Weak" if overlap >= 1 else
+            "❌ None"
+        )
+        results.append({
             'Narrator A': f"{a} ({ra.get('name_arabic','')})",
             'Lifespan A': f"{ra['birth_greg']}–{ra['death_greg']}",
             'Narrator B': f"{b} ({rb.get('name_arabic','')})",
             'Lifespan B': f"{rb['birth_greg']}–{rb['death_greg']}",
-            'Overlap Strength': status
+            'Overlap Strength': strength
         })
-    df_res = pd.DataFrame(rows)
+    df_res = pd.DataFrame(results)
     st.dataframe(df_res, use_container_width=True)
-elif len(chain) == 1:
+elif len(st.session_state.narrator_chain) == 1:
     st.info("Select at least two narrators to check overlap.")
 else:
     st.info("Start by typing a narrator name and selecting from suggestions.")
