@@ -6,17 +6,36 @@ from itertools import tee
 # Load and prepare dataset
 @st.cache_data
 def load_data():
-    df = pd.read_csv("narrators_dataset_v3.csv")
+    import os
+    # Attempt to locate CSV in common paths
+    base_dir = os.path.dirname(__file__)
+    candidates = [
+        'narrators_dataset_v3.csv',
+        os.path.join(base_dir, 'narrators_dataset_v3.csv'),
+        '/mnt/data/narrators_dataset_v3.csv'
+    ]
+    csv_file = None
+    for path in candidates:
+        if os.path.exists(path):
+            csv_file = path
+            break
+    if csv_file is None:
+        st.error(
+            "Data file 'narrators_dataset_v3.csv' not found. "
+            "Please upload the CSV into the same directory as app.py or place it in '/mnt/data'."
+        )
+        return pd.DataFrame()
+    df = pd.read_csv(csv_file)
     # Valid lifespans
     df = df[(df['birth_greg'] > 0) & (df['death_greg'] > 0)]
     df = df[df['birth_greg'] != df['death_greg']]
     # Normalize column names
     df.columns = df.columns.str.strip().str.lower()
-    # Parse places_of_stay into list of cities
+    # Parse places_of_stay
     df['cities'] = df['places_of_stay']\
         .fillna('')\
         .apply(lambda x: [c.strip().lower() for c in x.split(',') if c.strip()])
-    # Parse student and teacher indices into lists of ints
+    # Parse indices
     df['students_index'] = df['students_index']\
         .fillna('')\
         .apply(lambda x: [int(i) for i in str(x).split(',') if i.strip().isdigit()])
