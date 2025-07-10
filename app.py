@@ -43,7 +43,7 @@ narrators_df = load_data()
 
 # App configuration
 st.set_page_config(layout="wide")
-st.title("Hadith Narrator Connection")
+st.title("Hadith Narrator Nexus Verifier")
 st.markdown("Visualize and validate the hand-off between hadith narrators.")
 
 # Search helper
