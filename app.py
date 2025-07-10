@@ -43,8 +43,8 @@ narrators_df = load_data()
 
 # App configuration
 st.set_page_config(layout="wide")
-st.title("Sanad Verifier")
-st.markdown("Enhanced validation with temporal, geographic, and direct chain checks.")
+st.title("Hadith Narrator Connection")
+st.markdown("Visualize and validate the hand-off between hadith narrators.")
 
 # Search helper
 def search_narrators(query, choices, cutoff=0.7, n=8):
