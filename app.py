@@ -124,7 +124,8 @@ if len(chain) >= 2:
     for i, (a, b) in enumerate(zip(chain, chain[1:]), start=1):
         ra = lookup.loc[a]
         rb = lookup.loc[b]
-        # Temporal overlap\        overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
+                # Temporal overlap
+        overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
         # Geographic overlap
         common = set(ra['cities']).intersection(rb['cities'])
         # Direct isnad
