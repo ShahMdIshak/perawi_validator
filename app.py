@@ -108,13 +108,13 @@ chain = st.session_state.narrator_chain
 if chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
     for idx, name in enumerate(chain):
-        row = narrators_df[narrators_df['name_letters']==name].iloc[0]
-        grade = row.get('grade','—') if pd.notna(row.get('grade',None)) else '—'
+        row = narrators_df[narrators_df['name_letters'] == name].iloc[0]
+        grade = row.get('grade', '—') if pd.notna(row.get('grade', None)) else '—'
         c1, c2 = st.columns([0.9, 0.1])
         with c1:
             st.write(f"{idx+1}. {name} — Grade: {grade}")
         with c2:
-            st.button("❌ Remove", key=f"remove_{idx}", on_click=remove_narrator, args=(idx,))
+            st.button("❌", key=f"remove_{idx}", on_click=remove_narrator, args=(idx,))
     st.button("Reset Chain", on_click=reset_chain)
 
 # Results cards
@@ -124,11 +124,14 @@ if len(chain) >= 2:
     for i, (a, b) in enumerate(zip(chain, chain[1:]), start=1):
         ra = lookup.loc[a]
         rb = lookup.loc[b]
-                # Temporal overlap
-        overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
+        # Temporal overlap
+        overlap_years = max(
+            0,
+            min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg'])
+        )
         # Geographic overlap
         common = set(ra['cities']).intersection(rb['cities'])
-        # Direct isnad
+        # Direct isnad check
         a_idx = ra['scholar_index']
         b_idx = rb['scholar_index']
         is_teacher = b_idx in ra['students_index'] or a_idx in rb['teachers_index']
@@ -140,27 +143,21 @@ if len(chain) >= 2:
             link_label = f"{a} is the student of {b}"
         else:
             link_label = "None"
-        # Status and badge
+        # Status
         if is_teacher or is_student:
             status = "🟢 Silsilah muttasilah"
-            badge = "🟢"
         elif overlap_years >= 10:
             status = "✅ Strong"
-            badge = "✅"
         elif overlap_years >= 1 and common:
             status = "✅ Strong (Geo)"
-            badge = "✅"
         elif overlap_years >= 1:
             status = "🟡 Weak"
-            badge = "🟡"
         else:
             status = "❌ None"
-            badge = "🔴"
-        # Format shared cities
         geo = ', '.join([c.title() for c in sorted(common)]) if common else '—'
         # Render card
         st.markdown(f"""
-{badge} **{i}. {a} → {b}**  
+**{i}. {a} → {b}**  
 • **Status:** {status}  
 • **Lifespan {a}:** {ra['birth_greg']} CE – {ra['death_greg']} CE  
 • **Lifespan {b}:** {rb['birth_greg']} CE – {rb['death_greg']} CE  
