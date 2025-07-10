@@ -26,7 +26,7 @@ def load_data():
     df = df[df['birth_greg'] != df['death_greg']]
     # Normalize column names
     df.columns = df.columns.str.strip().str.lower()
-    # Parse places_of_stay into list of cities
+    # Parse places_of_stay into cities list
     df['cities'] = df['places_of_stay']\
         .fillna('')\
         .apply(lambda x: [c.strip().lower() for c in x.split(',') if c.strip()])
@@ -66,7 +66,6 @@ def add_narrator():
     sel = st.session_state.selected
     if sel and sel not in st.session_state.narrator_chain:
         st.session_state.narrator_chain.append(sel)
-    # Clear input and matches
     st.session_state.input = ''
     st.session_state.matches = []
     st.session_state.selected = ''
@@ -109,8 +108,8 @@ chain = st.session_state.narrator_chain
 if chain:
     st.markdown("**Selected Chain (Earliest to Latest):**")
     for idx, name in enumerate(chain):
-        row = narrators_df[narrators_df['name_letters'] == name].iloc[0]
-        grade = row.get('grade', '—') if pd.notna(row.get('grade', None)) else '—'
+        row = narrators_df[narrators_df['name_letters']==name].iloc[0]
+        grade = row.get('grade','—') if pd.notna(row.get('grade',None)) else '—'
         c1, c2 = st.columns([0.9, 0.1])
         with c1:
             st.write(f"{idx+1}. {name} — Grade: {grade}")
@@ -125,8 +124,7 @@ if len(chain) >= 2:
     for i, (a, b) in enumerate(zip(chain, chain[1:]), start=1):
         ra = lookup.loc[a]
         rb = lookup.loc[b]
-        # Temporal overlap
-        overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
+        # Temporal overlap\        overlap_years = max(0, min(ra['death_greg'], rb['death_greg']) - max(ra['birth_greg'], rb['birth_greg']))
         # Geographic overlap
         common = set(ra['cities']).intersection(rb['cities'])
         # Direct isnad
@@ -134,30 +132,37 @@ if len(chain) >= 2:
         b_idx = rb['scholar_index']
         is_teacher = b_idx in ra['students_index'] or a_idx in rb['teachers_index']
         is_student = b_idx in ra['teachers_index'] or a_idx in rb['students_index']
+        # Link label
         if is_teacher:
-            link_label = f"{a} is teacher of {b}"
+            link_label = f"{a} is the teacher of {b}"
         elif is_student:
-            link_label = f"{a} is student of {b}"
+            link_label = f"{a} is the student of {b}"
         else:
             link_label = "None"
-        # Status
+        # Status and badge
         if is_teacher or is_student:
             status = "🟢 Silsilah muttasilah"
+            badge = "🟢"
         elif overlap_years >= 10:
             status = "✅ Strong"
+            badge = "✅"
         elif overlap_years >= 1 and common:
             status = "✅ Strong (Geo)"
+            badge = "✅"
         elif overlap_years >= 1:
             status = "🟡 Weak"
+            badge = "🟡"
         else:
             status = "❌ None"
-        geo = ', '.join(sorted(common)) if common else '—'
-        # Render card with CE units and overlap comment
+            badge = "🔴"
+        # Format shared cities
+        geo = ', '.join([c.title() for c in sorted(common)]) if common else '—'
+        # Render card
         st.markdown(f"""
-**{i}. {a} → {b}**  
+{badge} **{i}. {a} → {b}**  
 • **Status:** {status}  
-• **Lifespan A:** {ra['birth_greg']} CE – {ra['death_greg']} CE  
-• **Lifespan B:** {rb['birth_greg']} CE – {rb['death_greg']} CE  
+• **Lifespan {a}:** {ra['birth_greg']} CE – {ra['death_greg']} CE  
+• **Lifespan {b}:** {rb['birth_greg']} CE – {rb['death_greg']} CE  
 • **Overlap Duration:** {overlap_years} year{'s' if overlap_years != 1 else ''}  
 • **Shared City:** {geo}  
 • **Student-Teacher Link:** {link_label}
